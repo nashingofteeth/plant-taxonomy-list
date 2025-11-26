@@ -47,7 +47,7 @@ function getFileMetadata(filePath) {
 
     // Extract aliases
     let aliases = [];
-    const aliasesMatch = frontmatter.match(/aliases:\s*\n((?:  - .+\n)+)/);
+    const aliasesMatch = frontmatter.match(/aliases:\s*\n((?:  - .+(?:\n|$))+)/);
     if (aliasesMatch) {
       const aliasLines = aliasesMatch[1].match(/  - (.+)/g);
       if (aliasLines) {
