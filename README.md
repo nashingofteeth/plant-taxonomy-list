@@ -13,6 +13,8 @@ A Node.js script that scans your Obsidian vault for plant taxonomy tags and gene
 
 ## Usage
 
+### Generate Markdown Taxonomy Tree
+
 Run the script from this directory:
 
 ```bash
@@ -25,6 +27,21 @@ Or make it executable and run directly:
 chmod +x generate-plant-taxonomy.js
 ./generate-plant-taxonomy.js
 ```
+
+### Generate HTML Version
+
+After generating the markdown file, you can create an HTML version with Wikipedia links:
+
+```bash
+node generate-html.js
+```
+
+This script:
+- Reads the markdown taxonomy tree
+- Looks up Wikipedia links from each plant's note file
+- Converts wikilinks to HTML anchor tags linking to Wikipedia
+- Creates plain text entries for items without Wikipedia links
+- Outputs to `../../../Projects/github/atlas/public/plants.html`
 
 ## Output
 
