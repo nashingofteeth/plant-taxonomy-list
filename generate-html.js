@@ -85,10 +85,10 @@ function parseLineToHTML(line) {
     const filePath = path.join(VAULT_PATH, `${fileName}.md`);
     const { wikipedia, aliases } = getFileMetadata(filePath);
 
-    // Build content with name and aliases (aliases outside link)
+    // Build content with name and aliases (aliases outside link, smaller)
     let aliasText = '';
     if (aliases.length > 0) {
-      aliasText = ` (${aliases.join(', ')})`;
+      aliasText = ` <span class="aliases">(${aliases.join(', ')})</span>`;
     }
 
     if (wikipedia) {
@@ -98,6 +98,9 @@ function parseLineToHTML(line) {
       // Plain text if no Wikipedia link
       content = displayName + aliasText;
     }
+  } else {
+    // Non-wikilink content should be muted (items without notes)
+    content = `<span class="muted">${content}</span>`;
   }
 
   return {
@@ -134,14 +137,26 @@ function convertMarkdownToHTML(markdownPath) {
 
   console.log(`Processing ${contentLines.length} lines...`);
 
-  // Convert lines to HTML
+  // Parse lines with indent information
+  const parsedLines = contentLines.map((line, index) => {
+    const { indentLevel, content } = parseLineToHTML(line);
+    // Check if next line is more indented (has children)
+    const nextLine = contentLines[index + 1];
+    let hasChildren = false;
+    if (nextLine) {
+      const nextIndentMatch = nextLine.match(/^(\t*)/);
+      const nextIndent = nextIndentMatch ? nextIndentMatch[1].length : 0;
+      hasChildren = nextIndent > indentLevel;
+    }
+    return { indentLevel, content, hasChildren };
+  });
+
+  // Convert lines to HTML with collapsible support
   let html = '';
   let currentIndent = -1;
   const openLists = [];
 
-  for (const line of contentLines) {
-    const { indentLevel, content } = parseLineToHTML(line);
-
+  for (const { indentLevel, content, hasChildren } of parsedLines) {
     // Close lists if we've decreased indent
     while (currentIndent >= indentLevel && openLists.length > 0) {
       html += '</ul>\n';
@@ -156,7 +171,11 @@ function convertMarkdownToHTML(markdownPath) {
       currentIndent++;
     }
 
-    html += `<li>${content}</li>\n`;
+    if (hasChildren) {
+      html += `<li class="has-children" onclick="toggleNode(this)">${content}</li>\n`;
+    } else {
+      html += `<li>${content}</li>\n`;
+    }
   }
 
   // Close all remaining lists
@@ -187,7 +206,7 @@ function generateHTMLDocument(bodyContent) {
             font-family: 'Courier New', Courier, monospace;
             line-height: 1.4;
             color: #2d3a2d;
-            background-color: #f5fef5;
+            background-color: HoneyDew;
             padding: 2rem;
         }
 
@@ -220,8 +239,25 @@ function generateHTMLDocument(bodyContent) {
         li::before {
             content: "•";
             position: absolute;
-            left: 0;
+            left: -4px;
             color: #5a8a5a;
+        }
+
+        li.has-children {
+            cursor: pointer;
+        }
+
+        li.has-children::before {
+            content: "▼";
+            color: #5a8a5a;
+        }
+
+        li.has-children:hover::before {
+            color: #00c400;
+        }
+
+        li.has-children.collapsed::before {
+            content: "▶";
         }
 
         a {
@@ -230,9 +266,55 @@ function generateHTMLDocument(bodyContent) {
         }
 
         a:hover {
-            color: #1a5c1a;
+            color: #00c400;
+        }
+
+        .muted {
+            color: #80a080;
+        }
+
+        .aliases {
+            font-size: 0.8em;
+        }
+
+        ul.collapsed {
+            display: none;
         }
     </style>
+    <script>
+        function toggleNode(li) {
+            // Get the parent ul element to understand the nesting level
+            const parentUl = li.parentElement;
+            const liIndex = Array.from(parentUl.children).indexOf(li);
+
+            // Find all UL elements that are children of this node
+            // They will be siblings that come after this li until we hit another li at the same level
+            const childUls = [];
+            let currentElement = li.nextElementSibling;
+
+            while (currentElement) {
+                if (currentElement.tagName === 'LI') {
+                    // Found another LI at the same level, stop
+                    break;
+                }
+                if (currentElement.tagName === 'UL') {
+                    childUls.push(currentElement);
+                }
+                currentElement = currentElement.nextElementSibling;
+            }
+
+            if (childUls.length > 0) {
+                const isCollapsed = li.classList.contains('collapsed');
+                if (isCollapsed) {
+                    childUls.forEach(ul => ul.classList.remove('collapsed'));
+                    li.classList.remove('collapsed');
+                } else {
+                    childUls.forEach(ul => ul.classList.add('collapsed'));
+                    li.classList.add('collapsed');
+                }
+            }
+        }
+    </script>
 </head>
 <body>
     <h1>Taxonomical List of Discovered Plants</h1>
