@@ -4,184 +4,75 @@ const fs = require('fs');
 const path = require('path');
 
 // Configuration
-const VAULT_PATH = path.resolve(__dirname, '../../Wikihew');
-const INPUT_FILE = path.resolve(__dirname, '../../Wikihew/plant taxonomy tree.md');
+const INPUT_FILE = path.resolve(__dirname, 'plant-data.json');
 const OUTPUT_FILE = path.resolve(__dirname, '../../../Projects/github/atlas/public/plants.html');
 
-// Cache for Wikipedia links and aliases
-const wikipediaCache = new Map();
-const aliasCache = new Map();
-
-// Parse frontmatter to extract Wikipedia link and aliases
-function getFileMetadata(filePath) {
-  if (!fs.existsSync(filePath)) {
-    return { wikipedia: null, aliases: [] };
-  }
-
-  if (wikipediaCache.has(filePath)) {
-    return {
-      wikipedia: wikipediaCache.get(filePath),
-      aliases: aliasCache.get(filePath) || []
-    };
-  }
-
-  try {
-    const content = fs.readFileSync(filePath, 'utf-8');
-    const frontmatterRegex = /^---\s*\n([\s\S]*?)\n---/;
-    const match = content.match(frontmatterRegex);
-
-    if (!match) {
-      wikipediaCache.set(filePath, null);
-      aliasCache.set(filePath, []);
-      return { wikipedia: null, aliases: [] };
-    }
-
-    const frontmatter = match[1];
-
-    // Extract Wikipedia link
-    let wikipedia = null;
-    const wikipediaMatch = frontmatter.match(/wikipedia:\s*(.+)/);
-    if (wikipediaMatch) {
-      wikipedia = wikipediaMatch[1].trim();
-    }
-
-    // Extract aliases
-    let aliases = [];
-    const aliasesMatch = frontmatter.match(/aliases:\s*\n((?:  - .+(?:\n|$))+)/);
-    if (aliasesMatch) {
-      const aliasLines = aliasesMatch[1].match(/  - (.+)/g);
-      if (aliasLines) {
-        aliases = aliasLines.map(line => line.replace(/^  - /, '').trim());
-      }
-    }
-
-    wikipediaCache.set(filePath, wikipedia);
-    aliasCache.set(filePath, aliases);
-    return { wikipedia, aliases };
-  } catch (error) {
-    console.error(`Error reading file ${filePath}:`, error.message);
-    wikipediaCache.set(filePath, null);
-    aliasCache.set(filePath, []);
-    return { wikipedia: null, aliases: [] };
-  }
-}
-
-// Parse a line and convert wikilinks to HTML
-function parseLineToHTML(line) {
-  // Extract indentation (tabs)
-  const indentMatch = line.match(/^(\t*)/);
-  const indentLevel = indentMatch ? indentMatch[1].length : 0;
-
-  // Remove indentation and bullet point
-  let content = line.replace(/^\t*- /, '');
-
-  // Check if it's a wikilink
-  const wikilinkRegex = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/;
-  const match = content.match(wikilinkRegex);
-
-  if (match) {
-    const fileName = match[1];
-    const displayName = match[2] || fileName;
-    const filePath = path.join(VAULT_PATH, `${fileName}.md`);
-    const { wikipedia, aliases } = getFileMetadata(filePath);
-
-    // Build content with name and aliases (aliases outside link, smaller)
-    let aliasText = '';
-    if (aliases.length > 0) {
-      aliasText = ` <span class="aliases">(${aliases.join(', ')})</span>`;
-    }
-
-    if (wikipedia) {
-      // Create HTML link to Wikipedia (only link the name, not aliases)
-      content = `<a href="${wikipedia}" target="_blank">${displayName}</a>${aliasText}`;
-    } else {
-      // Plain text if no Wikipedia link
-      content = displayName + aliasText;
-    }
-  } else {
-    // Non-wikilink content should be muted (items without notes)
-    content = `<span class="muted">${content}</span>`;
-  }
-
-  return {
-    indentLevel,
-    content
-  };
-}
-
-// Convert markdown to HTML
-function convertMarkdownToHTML(markdownPath) {
-  console.log('Reading markdown file...');
-  const markdown = fs.readFileSync(markdownPath, 'utf-8');
-
-  // Skip frontmatter
-  const lines = markdown.split('\n');
-  let inFrontmatter = false;
-  let contentLines = [];
-
-  for (const line of lines) {
-    if (line.trim() === '---') {
-      if (!inFrontmatter) {
-        inFrontmatter = true;
-        continue;
-      } else {
-        inFrontmatter = false;
-        continue;
-      }
-    }
-
-    if (!inFrontmatter && line.trim()) {
-      contentLines.push(line);
-    }
-  }
-
-  console.log(`Processing ${contentLines.length} lines...`);
-
-  // Parse lines with indent information
-  const parsedLines = contentLines.map((line, index) => {
-    const { indentLevel, content } = parseLineToHTML(line);
-    // Check if next line is more indented (has children)
-    const nextLine = contentLines[index + 1];
-    let hasChildren = false;
-    if (nextLine) {
-      const nextIndentMatch = nextLine.match(/^(\t*)/);
-      const nextIndent = nextIndentMatch ? nextIndentMatch[1].length : 0;
-      hasChildren = nextIndent > indentLevel;
-    }
-    return { indentLevel, content, hasChildren };
-  });
-
-  // Convert lines to HTML with collapsible support
+// Generate HTML list from JSON tree
+function generateHTML(taxonomy, level = 0) {
   let html = '';
-  let currentIndent = -1;
-  const openLists = [];
+  const indent = '  '.repeat(level);
 
-  for (const { indentLevel, content, hasChildren } of parsedLines) {
-    // Close lists if we've decreased indent
-    while (currentIndent >= indentLevel && openLists.length > 0) {
-      html += '</ul>\n';
-      openLists.pop();
-      currentIndent--;
-    }
+  for (let i = 0; i < taxonomy.length; i++) {
+    const node = taxonomy[i];
+    const hasChildren = node.children.length > 0 || node.otherFiles.length > 0;
 
-    // Open new lists if we've increased indent
-    while (currentIndent < indentLevel) {
-      html += '<ul>\n';
-      openLists.push(true);
-      currentIndent++;
-    }
+    // Determine if next sibling is at same level (for closing ul tags)
+    const isLastInLevel = i === taxonomy.length - 1;
 
-    if (hasChildren) {
-      html += `<li class="has-children" onclick="toggleNode(this)">${content}</li>\n`;
+    // Generate content for this node
+    let content = '';
+    if (node.file) {
+      // Node has a file - create link or plain text
+      const displayName = node.name;
+      let aliasText = '';
+      if (node.file.aliases && node.file.aliases.length > 0) {
+        aliasText = ` <span class="aliases">(${node.file.aliases.join(', ')})</span>`;
+      }
+
+      if (node.file.wikipedia) {
+        content = `<a href="${node.file.wikipedia}" target="_blank">${displayName}</a>${aliasText}`;
+      } else {
+        content = displayName + aliasText;
+      }
     } else {
-      html += `<li>${content}</li>\n`;
+      // Node has no file - muted text
+      content = `<span class="muted">${node.name}</span>`;
     }
-  }
 
-  // Close all remaining lists
-  while (openLists.length > 0) {
-    html += '</ul>\n';
-    openLists.pop();
+    // Create list item
+    if (hasChildren) {
+      html += `${indent}<li class="has-children" onclick="toggleNode(this)">${content}</li>\n`;
+    } else {
+      html += `${indent}<li>${content}</li>\n`;
+    }
+
+    // Add other files at this level
+    if (node.otherFiles.length > 0) {
+      html += `${indent}<ul>\n`;
+      for (const file of node.otherFiles) {
+        let fileContent = '';
+        let aliasText = '';
+        if (file.aliases && file.aliases.length > 0) {
+          aliasText = ` <span class="aliases">(${file.aliases.join(', ')})</span>`;
+        }
+
+        if (file.wikipedia) {
+          fileContent = `<a href="${file.wikipedia}" target="_blank">${file.fileName}</a>${aliasText}`;
+        } else {
+          fileContent = file.fileName + aliasText;
+        }
+
+        html += `${indent}  <li>${fileContent}</li>\n`;
+      }
+      html += `${indent}</ul>\n`;
+    }
+
+    // Add children
+    if (node.children.length > 0) {
+      html += `${indent}<ul>\n`;
+      html += generateHTML(node.children, level + 1);
+      html += `${indent}</ul>\n`;
+    }
   }
 
   return html;
@@ -338,7 +229,8 @@ function generateHTMLDocument(bodyContent) {
 </head>
 <body>
     <h1>Taxonomical List of Discovered Plants</h1>
-    ${bodyContent}
+    <ul>
+${bodyContent}    </ul>
 </body>
 </html>`;
 }
@@ -353,6 +245,7 @@ function main() {
   // Check if input file exists
   if (!fs.existsSync(INPUT_FILE)) {
     console.error(`Error: Input file not found: ${INPUT_FILE}`);
+    console.log('Please run generate-plant-data.js first.');
     process.exit(1);
   }
 
@@ -364,18 +257,20 @@ function main() {
     process.exit(1);
   }
 
-  // Convert markdown to HTML
-  const bodyContent = convertMarkdownToHTML(INPUT_FILE);
+  // Read JSON data
+  console.log('Reading plant data...');
+  const data = JSON.parse(fs.readFileSync(INPUT_FILE, 'utf-8'));
 
-  // Generate complete HTML document
+  // Generate HTML
+  console.log('Generating HTML...');
+  const bodyContent = generateHTML(data.taxonomy);
   const htmlDocument = generateHTMLDocument(bodyContent);
 
   // Write to file
   fs.writeFileSync(OUTPUT_FILE, htmlDocument);
 
   console.log(`\nSuccessfully generated: ${OUTPUT_FILE}`);
-  console.log(`Total Wikipedia links found: ${Array.from(wikipediaCache.values()).filter(v => v !== null).length}`);
-  console.log(`Total items without Wikipedia links: ${Array.from(wikipediaCache.values()).filter(v => v === null).length}`);
+  console.log(`Total plants catalogued: ${data.totalPlants}`);
 }
 
 // Run the script

@@ -5,7 +5,7 @@ const path = require('path');
 
 // Configuration
 const VAULT_PATH = path.resolve(__dirname, '../../Wikihew');
-const OUTPUT_FILE = path.resolve(__dirname, '../../Wikihew/plant taxonomy tree.md');
+const OUTPUT_FILE = path.resolve(__dirname, 'plant-data.json');
 const TAG_PREFIX = 'life/eukaryota/plantae';
 
 // Parse frontmatter from markdown file
@@ -18,7 +18,7 @@ function parseFrontmatter(content) {
   const frontmatter = match[1];
   const tags = [];
 
-  // Parse tags (handle both array and single line formats)
+  // Parse tags
   const tagsMatch = frontmatter.match(/tags:\s*\n((?:  - .+\n)+)/);
   if (tagsMatch) {
     const tagLines = tagsMatch[1].match(/  - (.+)/g);
@@ -52,6 +52,43 @@ function findMarkdownFiles(dir) {
   return results;
 }
 
+// Parse frontmatter to extract metadata
+function getFileMetadata(filePath) {
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const frontmatterRegex = /^---\s*\n([\s\S]*?)\n---/;
+    const match = content.match(frontmatterRegex);
+
+    if (!match) {
+      return { wikipedia: null, aliases: [] };
+    }
+
+    const frontmatter = match[1];
+
+    // Extract Wikipedia link
+    let wikipedia = null;
+    const wikipediaMatch = frontmatter.match(/wikipedia:\s*(.+)/);
+    if (wikipediaMatch) {
+      wikipedia = wikipediaMatch[1].trim();
+    }
+
+    // Extract aliases
+    let aliases = [];
+    const aliasesMatch = frontmatter.match(/aliases:\s*\n((?:  - .+(?:\n|$))+)/);
+    if (aliasesMatch) {
+      const aliasLines = aliasesMatch[1].match(/  - (.+)/g);
+      if (aliasLines) {
+        aliases = aliasLines.map(line => line.replace(/^  - /, '').trim());
+      }
+    }
+
+    return { wikipedia, aliases };
+  } catch (error) {
+    console.error(`Error reading file ${filePath}:`, error.message);
+    return { wikipedia: null, aliases: [] };
+  }
+}
+
 // Extract plant taxonomy data from files
 function extractPlantData() {
   console.log('Scanning vault for plant files...');
@@ -71,16 +108,25 @@ function extractPlantData() {
 
     if (plantTags.length > 0) {
       const fileName = path.basename(filePath, '.md');
+      const { wikipedia, aliases } = getFileMetadata(filePath);
+
       plantFiles.push({
         fileName,
-        filePath,
-        tags: plantTags
+        tags: plantTags,
+        wikipedia,
+        aliases
       });
     }
   }
 
   console.log(`Found ${plantFiles.length} plant files`);
   return plantFiles;
+}
+
+// Check if a filename matches the taxonomy level name
+function fileMatchesTaxonomy(fileName, taxonomyName) {
+  const normalizeForComparison = (str) => str.toLowerCase().replace(/[\s-]/g, '');
+  return normalizeForComparison(fileName) === normalizeForComparison(taxonomyName);
 }
 
 // Build hierarchical tree structure
@@ -101,13 +147,17 @@ function buildTaxonomyTree(plantFiles) {
           current[part] = {
             name: part,
             children: {},
-            files: []  // Changed: store multiple files at each level
+            files: []
           };
         }
 
         // If this is the last part of the tag, add the file here
         if (i === parts.length - 1) {
-          current[part].files.push(file.fileName);
+          current[part].files.push({
+            fileName: file.fileName,
+            wikipedia: file.wikipedia,
+            aliases: file.aliases
+          });
         }
 
         current = current[part].children;
@@ -123,98 +173,46 @@ function capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-// Check if a filename matches the taxonomy level name
-function fileMatchesTaxonomy(fileName, taxonomyName) {
-  // Normalize both for comparison (lowercase, remove spaces/hyphens)
-  const normalizeForComparison = (str) => str.toLowerCase().replace(/[\s-]/g, '');
-  return normalizeForComparison(fileName) === normalizeForComparison(taxonomyName);
-}
+// Convert tree to simplified JSON structure
+function treeToJSON(tree, parentFiles = []) {
+  const result = [];
 
-// Check if any child node name matches one of the file names
-function hasMatchingChildNode(node) {
-  for (const childKey of Object.keys(node.children)) {
-    for (const fileName of node.files) {
-      if (fileMatchesTaxonomy(fileName, childKey)) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-// Generate markdown list from tree
-function generateMarkdown(tree, level = 0, parentFiles = []) {
-  let markdown = '';
-  const indent = '\t'.repeat(level);
-
-  // Sort keys alphabetically for consistent output
   const sortedKeys = Object.keys(tree).sort();
 
   for (const key of sortedKeys) {
     const node = tree[key];
-    const displayName = capitalize(node.name);
 
-    // Check if any file at THIS level matches the taxonomy name
-    const matchingFileAtThisLevel = node.files.find(f => fileMatchesTaxonomy(f, node.name));
-
-    // Check if any file at PARENT level matches this node's name
-    const matchingFileAtParentLevel = parentFiles.find(f => fileMatchesTaxonomy(f, node.name));
-
-    // Use whichever matching file we found
+    // Check if any file at this level or parent level matches the taxonomy name
+    const matchingFileAtThisLevel = node.files.find(f => fileMatchesTaxonomy(f.fileName, node.name));
+    const matchingFileAtParentLevel = parentFiles.find(f => fileMatchesTaxonomy(f.fileName, node.name));
     const matchingFile = matchingFileAtThisLevel || matchingFileAtParentLevel;
 
-    const otherFiles = node.files.filter(f => !fileMatchesTaxonomy(f, node.name));
+    // Get other files (not matching taxonomy name and not matching child nodes)
+    const otherFiles = node.files.filter(f => {
+      if (fileMatchesTaxonomy(f.fileName, node.name)) return false;
+      return !Object.keys(node.children).some(childKey =>
+        fileMatchesTaxonomy(f.fileName, childKey)
+      );
+    });
 
-    if (matchingFile) {
-      // Show as wikilink if a matching file exists
-      markdown += `${indent}- [[${matchingFile}]]\n`;
+    const item = {
+      name: capitalize(node.name),
+      file: matchingFile || null,
+      otherFiles: otherFiles,
+      children: Object.keys(node.children).length > 0
+        ? treeToJSON(node.children, node.files)
+        : []
+    };
 
-      // Show any other files tagged at this level (that don't match the taxonomy name)
-      // BUT: skip files that match a child node name (they'll be shown as that child node)
-      const filesToShow = otherFiles.filter(fileName => {
-        return !Object.keys(node.children).some(childKey =>
-          fileMatchesTaxonomy(fileName, childKey)
-        );
-      });
-
-      if (filesToShow.length > 0) {
-        const sortedFilesToShow = filesToShow.sort();
-        for (const fileName of sortedFilesToShow) {
-          markdown += `${indent}\t- [[${fileName}]]\n`;
-        }
-      }
-    } else {
-      // Show as plain text if no matching file
-      markdown += `${indent}- ${displayName}\n`;
-
-      // Show any files tagged at this level
-      // BUT: skip files that match a child node name (they'll be shown as that child node)
-      const filesToShow = node.files.filter(fileName => {
-        return !Object.keys(node.children).some(childKey =>
-          fileMatchesTaxonomy(fileName, childKey)
-        );
-      });
-
-      if (filesToShow.length > 0) {
-        const sortedFiles = filesToShow.sort();
-        for (const fileName of sortedFiles) {
-          markdown += `${indent}\t- [[${fileName}]]\n`;
-        }
-      }
-    }
-
-    // Recursively process children, passing down this node's files
-    if (Object.keys(node.children).length > 0) {
-      markdown += generateMarkdown(node.children, level + 1, node.files);
-    }
+    result.push(item);
   }
 
-  return markdown;
+  return result;
 }
 
 // Main execution
 function main() {
-  console.log('Starting plant taxonomy tree generation...');
+  console.log('Starting plant data generation...');
   console.log(`Vault path: ${VAULT_PATH}`);
   console.log(`Output file: ${OUTPUT_FILE}`);
   console.log('');
@@ -231,32 +229,27 @@ function main() {
   console.log('Building taxonomy tree...');
   const tree = buildTaxonomyTree(plantFiles);
 
-  // Generate markdown
-  console.log('Generating markdown...');
-  const today = new Date().toISOString().split('T')[0];
-  const frontmatter = `---
-created: ${today}
-modified: ${today}
-tags:
-  - lists
----
-`;
-
   // Skip "life", "eukaryota", "plantae" levels and go directly to children
   let startTree = tree;
   let parentFiles = [];
   if (startTree.life && startTree.life.children.eukaryota) {
     startTree = startTree.life.children.eukaryota.children;
     if (startTree.plantae && startTree.plantae.children) {
-      parentFiles = startTree.plantae.files;  // Save plantae's files to pass as parent
+      parentFiles = startTree.plantae.files;
       startTree = startTree.plantae.children;
     }
   }
 
-  const markdown = frontmatter + generateMarkdown(startTree, 0, parentFiles);
+  // Convert to JSON
+  console.log('Converting to JSON...');
+  const jsonData = {
+    generated: new Date().toISOString(),
+    totalPlants: plantFiles.length,
+    taxonomy: treeToJSON(startTree, parentFiles)
+  };
 
   // Write to file
-  fs.writeFileSync(OUTPUT_FILE, markdown);
+  fs.writeFileSync(OUTPUT_FILE, JSON.stringify(jsonData, null, 2));
   console.log(`\nSuccessfully generated: ${OUTPUT_FILE}`);
   console.log(`Total plants catalogued: ${plantFiles.length}`);
 }
