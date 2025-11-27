@@ -188,21 +188,60 @@ function treeToJSON(tree, parentFiles = []) {
     const matchingFileAtParentLevel = parentFiles.find(f => fileMatchesTaxonomy(f.fileName, node.name));
     const matchingFile = matchingFileAtThisLevel || matchingFileAtParentLevel;
 
+    // Process children and check for binomial name matches
+    const children = [];
+    const childKeys = Object.keys(node.children).sort();
+
+    // For each child, check if any file matches "parent child" (binomial name)
+    for (const childKey of childKeys) {
+      const childNode = node.children[childKey];
+
+      // Look for a file in current level or parent level that matches "nodeName childKey"
+      const binomialPattern = `${node.name} ${childKey}`;
+      const matchingBinomialFile = [...node.files, ...parentFiles].find(f =>
+        fileMatchesTaxonomy(f.fileName, binomialPattern)
+      );
+
+      if (matchingBinomialFile) {
+        // This child should use the full binomial name from the species file
+        const childItem = {
+          name: matchingBinomialFile.fileName, // Use full binomial name instead of just epithet
+          file: matchingBinomialFile,
+          otherFiles: childNode.files
+            .filter(f => !fileMatchesTaxonomy(f.fileName, childKey))
+            .sort((a, b) => a.fileName.localeCompare(b.fileName)),
+          children: Object.keys(childNode.children).length > 0
+            ? treeToJSON(childNode.children, childNode.files)
+            : []
+        };
+        children.push(childItem);
+      } else {
+        // Normal child processing
+        children.push(...treeToJSON({ [childKey]: childNode }, node.files));
+      }
+    }
+
     // Get other files (not matching taxonomy name and not matching child nodes)
     const otherFiles = node.files.filter(f => {
       if (fileMatchesTaxonomy(f.fileName, node.name)) return false;
-      return !Object.keys(node.children).some(childKey =>
-        fileMatchesTaxonomy(f.fileName, childKey)
-      );
+
+      // Check if file matches any child node name
+      if (childKeys.some(childKey => fileMatchesTaxonomy(f.fileName, childKey))) return false;
+
+      // Check if file matches any binomial pattern (nodeName childKey)
+      if (childKeys.some(childKey => {
+        const binomialPattern = `${node.name} ${childKey}`;
+        return fileMatchesTaxonomy(f.fileName, binomialPattern);
+      })) return false;
+
+      return true;
     });
 
     const item = {
       name: capitalize(node.name),
       file: matchingFile || null,
-      otherFiles: otherFiles,
-      children: Object.keys(node.children).length > 0
-        ? treeToJSON(node.children, node.files)
-        : []
+      otherFiles: otherFiles.sort((a, b) => a.fileName.localeCompare(b.fileName)),
+      children: children
     };
 
     result.push(item);
