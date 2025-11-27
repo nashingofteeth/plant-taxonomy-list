@@ -5,7 +5,7 @@ const path = require('path');
 
 // Configuration
 const INPUT_FILE = path.resolve(__dirname, 'plant-data.json');
-const OUTPUT_FILE = path.resolve(__dirname, '../../Wikihew/plant taxonomy tree.md');
+const OUTPUT_FILE = path.resolve(__dirname, 'plant taxonomy tree.md');
 
 // Generate markdown from JSON tree
 function generateMarkdown(taxonomy, level = 0) {
@@ -54,13 +54,21 @@ function main() {
 
   // Generate markdown
   console.log('Generating markdown...');
-  const today = new Date().toISOString().split('T')[0];
+  const generatedDate = new Date(data.generated);
+  const today = generatedDate.toISOString().split('T')[0];
+
+  // Format date for daily note wikilink (YYYY-MM-DD)
+  const dailyNoteLink = today;
+
   const frontmatter = `---
 created: ${today}
 modified: ${today}
 tags:
   - lists
 ---
+
+Last updated: [[${dailyNoteLink}]]
+
 `;
 
   const markdown = frontmatter + generateMarkdown(data.taxonomy);

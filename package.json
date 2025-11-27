@@ -1,0 +1,12 @@
+{
+  "name": "plant-taxonomy-tree-page",
+  "version": "1.0.0",
+  "description": "Generate plant taxonomy tree from Obsidian vault",
+  "scripts": {
+    "data": "node generate-data.js",
+    "markdown": "node generate-markdown.js",
+    "build": "node generate-data.js && node generate-markdown.js && cp plant-data.json ../../../Projects/github/atlas/_data/plant-data.json && cp 'plant taxonomy tree.md' ../../Wikihew/'plant taxonomy tree.md' && cd ../../../Projects/github/atlas && node build.js"
+  },
+  "author": "",
+  "license": "ISC"
+}
