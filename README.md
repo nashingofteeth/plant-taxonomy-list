@@ -10,45 +10,62 @@ A Node.js script that scans your Obsidian vault for plant taxonomy tags and gene
 - Shows plain text for intermediate taxonomy levels without associated files
 - Capitalizes all entries for consistent formatting
 - Handles species names correctly (genus capitalized, species lowercase in tags)
+- Generates JSON data file with Wikipedia links for use in other projects
 
 ## Usage
 
-### Generate Markdown Taxonomy Tree
-
-Run the script from this directory:
+### NPM Scripts (Recommended)
 
 ```bash
-node generate-plant-taxonomy.js
+# Generate plant data JSON file
+npm run data
+
+# Generate markdown taxonomy tree
+npm run markdown
+
+# Full build: generate data, markdown, copy files to atlas and wikihew, and build atlas
+npm run build
 ```
 
-Or make it executable and run directly:
+### Individual Scripts
+
+You can also run the scripts directly:
+
+#### Generate Plant Data
 
 ```bash
-chmod +x generate-plant-taxonomy.js
-./generate-plant-taxonomy.js
-```
-
-### Generate HTML Version
-
-After generating the markdown file, you can create an HTML version with Wikipedia links:
-
-```bash
-node generate-html.js
+node generate-data.js
 ```
 
 This script:
-- Reads the markdown taxonomy tree
-- Looks up Wikipedia links from each plant's note file
-- Converts wikilinks to HTML anchor tags linking to Wikipedia
-- Creates plain text entries for items without Wikipedia links
-- Outputs to `../../../Projects/github/atlas/public/plants.html`
+- Scans the vault for plant files with `life/eukaryota/plantae` tags
+- Extracts Wikipedia links from each plant's note file
+- Outputs to `plant-data.json`
+
+#### Generate Markdown Taxonomy Tree
+
+```bash
+node generate-markdown.js
+```
+
+This script:
+- Reads the plant data JSON file
+- Builds a nested hierarchical tree structure
+- Generates `plant taxonomy tree.md` with wikilinks
 
 ## Output
 
-The script generates `plant taxonomy tree.md` in your vault (`../../Wikihew`) with a nested bullet list showing:
-- Each taxonomy level (Life, Eukaryota, Plantae, etc.) as plain text
-- Files tagged at each level as wikilinks indented under their taxonomy level
-- Both the scaffolding of the tag structure AND the actual plant files in a unified view
+The scripts generate two files:
+
+1. **plant-data.json**: JSON file containing all plant data with Wikipedia links
+2. **plant taxonomy tree.md**: Markdown file with a nested bullet list showing:
+   - Each taxonomy level (Life, Eukaryota, Plantae, etc.) as plain text
+   - Files tagged at each level as wikilinks indented under their taxonomy level
+   - Both the scaffolding of the tag structure AND the actual plant files in a unified view
+
+When using `npm run build`, these files are automatically copied to:
+- `plant-data.json` → `../atlas/_data/plant-data.json`
+- `plant taxonomy tree.md` → `../wikihew/plant taxonomy tree.md`
 
 Example structure:
 
@@ -80,24 +97,35 @@ In this structure:
 
 ## Configuration
 
-You can modify these constants at the top of the script:
+You can modify these constants at the top of each script:
 
+### generate-data.js
 - `VAULT_PATH`: Path to your Obsidian vault (default: `../../Wikihew`)
-- `OUTPUT_FILE`: Where to save the generated markdown (default: `../../Wikihew/plant taxonomy tree.md`)
 - `TAG_PREFIX`: The tag prefix to search for (default: `life/eukaryota/plantae`)
+- `OUTPUT_FILE`: Where to save the JSON data (default: `plant-data.json`)
 
-The output file includes frontmatter with:
+### generate-markdown.js
+- `DATA_FILE`: Path to the plant data JSON (default: `plant-data.json`)
+- `OUTPUT_FILE`: Where to save the generated markdown (default: `plant taxonomy tree.md`)
+
+The markdown output file includes frontmatter with:
 - `created` and `modified` timestamps
 - `tags: [lists]` for easy filtering
 
 ## How it Works
 
+### Data Generation (generate-data.js)
 1. Recursively scans all markdown files in the vault
-2. Parses YAML frontmatter to extract tags
+2. Parses YAML frontmatter to extract tags and Wikipedia links
 3. Filters for tags starting with `life/eukaryota/plantae`
 4. Builds a hierarchical tree structure from the tag paths
 5. Associates each file with the deepest taxonomy level in its tag
-6. Generates a nested markdown list showing:
+6. Outputs structured JSON data with Wikipedia links
+
+### Markdown Generation (generate-markdown.js)
+1. Reads the plant data JSON file
+2. Builds a nested hierarchical tree from the data
+3. Generates a nested markdown list showing:
    - Taxonomy levels as plain text headers
    - Files tagged at each level as indented wikilinks
-7. Sorts everything alphabetically for easy navigation
+4. Sorts everything alphabetically for easy navigation
