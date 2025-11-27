@@ -231,7 +231,7 @@ function generateHTMLDocument(bodyContent) {
         }
 
         li {
-            margin: 0.1rem 0;
+            margin: 0.2rem 0;
             position: relative;
             padding-left: 2ch;
         }
@@ -279,6 +279,26 @@ function generateHTMLDocument(bodyContent) {
 
         ul.collapsed {
             display: none;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+                font-size: 0.9em;
+            }
+
+            ul {
+                padding-left: 1.5ch;
+            }
+
+            li {
+                padding-left: 1.5ch;
+                margin: 0.5rem 0;
+            }
+
+            li::before {
+                left: -3px;
+            }
         }
     </style>
     <script>
