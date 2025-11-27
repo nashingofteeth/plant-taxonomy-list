@@ -6,6 +6,7 @@ const path = require('path');
 // Configuration
 const VAULT_PATH = path.resolve(__dirname, '../../Wikihew');
 const OUTPUT_FILE = path.resolve(__dirname, 'plant-data.json');
+const ATLAS_OUTPUT_FILE = path.resolve(__dirname, '../../../Projects/github/atlas/_data/plant-data.json');
 const TAG_PREFIX = 'life/eukaryota/plantae';
 
 // Parse frontmatter from markdown file
@@ -248,9 +249,18 @@ function main() {
     taxonomy: treeToJSON(startTree, parentFiles)
   };
 
-  // Write to file
+  // Write to files
   fs.writeFileSync(OUTPUT_FILE, JSON.stringify(jsonData, null, 2));
   console.log(`\nSuccessfully generated: ${OUTPUT_FILE}`);
+
+  // Also write to Atlas _data directory
+  const atlasDir = path.dirname(ATLAS_OUTPUT_FILE);
+  if (!fs.existsSync(atlasDir)) {
+    fs.mkdirSync(atlasDir, { recursive: true });
+  }
+  fs.writeFileSync(ATLAS_OUTPUT_FILE, JSON.stringify(jsonData, null, 2));
+  console.log(`Successfully generated: ${ATLAS_OUTPUT_FILE}`);
+
   console.log(`Total plants catalogued: ${plantFiles.length}`);
 }
 
