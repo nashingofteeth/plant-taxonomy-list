@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 // Configuration
-const VAULT_PATH = path.resolve(__dirname, '../../Wikihew');
+const VAULT_PATH = path.resolve(__dirname, '../wikihew');
 const OUTPUT_FILE = path.resolve(__dirname, 'plant-data.json');
 const TAG_PREFIX = 'life/eukaryota/plantae';
 
