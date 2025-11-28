@@ -1,13 +1,19 @@
 #!/usr/bin/env node
 
-const fs = require('fs');
 const path = require('path');
+const {
+  Logger,
+  validateFile,
+  formatDate,
+  safeReadFile,
+  safeWriteFile
+} = require('./utils');
 
 // Configuration
 const INPUT_FILE = path.resolve(__dirname, 'plant-data.json');
 const OUTPUT_FILE = path.resolve(__dirname, 'plant taxonomy tree.md');
 
-// Generate markdown from JSON tree
+// Generate markdown from JSON tree (original implementation)
 function generateMarkdown(taxonomy, level = 0) {
   let markdown = '';
   const indent = '\t'.repeat(level);
@@ -36,31 +42,27 @@ function generateMarkdown(taxonomy, level = 0) {
 
 // Main execution
 function main() {
-  console.log('Starting markdown generation...');
-  console.log(`Input file: ${INPUT_FILE}`);
-  console.log(`Output file: ${OUTPUT_FILE}`);
-  console.log('');
+  try {
+    Logger.info('Starting markdown generation...');
+    Logger.info(`Input file: ${INPUT_FILE}`);
+    Logger.info(`Output file: ${OUTPUT_FILE}`);
 
-  // Check if input file exists
-  if (!fs.existsSync(INPUT_FILE)) {
-    console.error(`Error: Input file not found: ${INPUT_FILE}`);
-    console.log('Please run generate-plant-data.js first.');
-    process.exit(1);
-  }
+    // Check if input file exists
+    validateFile(INPUT_FILE, 'Input file');
 
-  // Read JSON data
-  console.log('Reading plant data...');
-  const data = JSON.parse(fs.readFileSync(INPUT_FILE, 'utf-8'));
+    // Read JSON data
+    Logger.info('Reading plant data...');
+    const data = JSON.parse(safeReadFile(INPUT_FILE, 'Plant data JSON'));
 
-  // Generate markdown
-  console.log('Generating markdown...');
-  const generatedDate = new Date(data.generated);
-  const today = generatedDate.toISOString().split('T')[0];
+    // Generate markdown
+    Logger.info('Generating markdown...');
+    const generatedDate = new Date(data.generated);
+    const today = generatedDate.toISOString().split('T')[0];
 
-  // Format date for daily note wikilink (YYYY-MM-DD)
-  const dailyNoteLink = today;
+    // Format date for daily note wikilink (YYYY-MM-DD)
+    const dailyNoteLink = today;
 
-  const frontmatter = `---
+    const frontmatter = `---
 created: ${today}
 modified: ${today}
 tags:
@@ -71,18 +73,23 @@ Last updated: [[${dailyNoteLink}]]
 
 `;
 
-  const markdown = frontmatter + generateMarkdown(data.taxonomy);
+    const markdown = frontmatter + generateMarkdown(data.taxonomy);
 
-  // Write to file
-  fs.writeFileSync(OUTPUT_FILE, markdown);
-  console.log(`\nSuccessfully generated: ${OUTPUT_FILE}`);
-  console.log(`Total plants catalogued: ${data.totalPlants}`);
+    // Write to file
+    safeWriteFile(OUTPUT_FILE, markdown, 'Markdown taxonomy tree');
+    Logger.info(`Total plants catalogued: ${data.totalPlants}`);
+
+  } catch (error) {
+    Logger.error(`Fatal error: ${error.message}`);
+    process.exit(1);
+  }
 }
 
 // Run the script
-try {
+if (require.main === module) {
   main();
-} catch (error) {
-  console.error('Error:', error.message);
-  process.exit(1);
 }
+
+module.exports = {
+  generateMarkdown
+};
