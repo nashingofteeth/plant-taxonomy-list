@@ -11,7 +11,7 @@ const config = {
   markdownFile: 'plant taxonomy list.md',
   
   // Output paths
-  atlasDataPath: '../atlas/_data/plant-data.json',
+  atlasDataPath: '../atlas/src/_data/plant-data.json',
   wikiMarkdownPath: '../wikihew/plant taxonomy list.md',
   
   // Script files
