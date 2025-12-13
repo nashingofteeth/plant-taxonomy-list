@@ -11,7 +11,7 @@ const {
 
 // Configuration
 const INPUT_FILE = path.resolve(__dirname, 'plant-data.json');
-const OUTPUT_FILE = path.resolve(__dirname, 'plant taxonomy tree.md');
+const OUTPUT_FILE = path.resolve(__dirname, 'plant taxonomy list.md');
 
 // Generate markdown from JSON tree (original implementation)
 function generateMarkdown(taxonomy, level = 0) {
