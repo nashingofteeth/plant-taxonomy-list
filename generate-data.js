@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const path = require('path');
+const config = require('./config');
 const {
   Logger,
   validateDirectory,
@@ -13,8 +14,8 @@ const {
 
 // Configuration
 const CONFIG = {
-  VAULT_PATH: path.resolve(__dirname, '../wikihew'),
-  OUTPUT_FILE: path.resolve(__dirname, 'plant-data.json'),
+  VAULT_PATH: path.resolve(__dirname, config.vaultPath),
+  OUTPUT_FILE: path.resolve(__dirname, config.dataFile),
   TAG_PREFIX: 'life/eukaryota/plantae',
   FRONTMATTER_REGEX: /^---\s*\n([\s\S]*?)\n---/,
   TAGS_REGEX: /tags:\s*\n((?:  - .+\n)+)/,

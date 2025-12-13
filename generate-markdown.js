@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const path = require('path');
+const config = require('./config');
 const {
   Logger,
   validateFile,
@@ -10,8 +11,8 @@ const {
 } = require('./utils');
 
 // Configuration
-const INPUT_FILE = path.resolve(__dirname, 'plant-data.json');
-const OUTPUT_FILE = path.resolve(__dirname, 'plant taxonomy list.md');
+const INPUT_FILE = path.resolve(__dirname, config.dataFile);
+const OUTPUT_FILE = path.resolve(__dirname, config.markdownFile);
 
 // Generate markdown from JSON tree (original implementation)
 function generateMarkdown(taxonomy, level = 0) {
