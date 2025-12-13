@@ -2,11 +2,17 @@
   "name": "plant-taxonomy-list",
   "version": "1.0.0",
   "description": "Generate plant taxonomy list from Obsidian vault",
+  "main": "build.js",
+  "bin": {
+    "plant-list-builder": "./build.js"
+  },
   "scripts": {
     "data": "node generate-data.js",
     "markdown": "node generate-markdown.js",
     "build": "node build.js"
   },
-  "author": "",
-  "license": "ISC"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nashingofteeth/plant-taxonomy-list.git"
+  }
 }

@@ -11,8 +11,8 @@ const {
 } = require('./utils');
 
 // Configuration
-const INPUT_FILE = path.resolve(__dirname, config.dataFile);
-const OUTPUT_FILE = path.resolve(__dirname, config.markdownFile);
+const INPUT_FILE = config.dataFile;
+const OUTPUT_FILE = config.markdownFile;
 
 // Generate markdown from JSON tree (original implementation)
 function generateMarkdown(taxonomy, level = 0) {

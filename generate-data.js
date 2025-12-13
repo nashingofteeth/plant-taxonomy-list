@@ -14,8 +14,8 @@ const {
 
 // Configuration
 const CONFIG = {
-  VAULT_PATH: path.resolve(__dirname, config.vaultPath),
-  OUTPUT_FILE: path.resolve(__dirname, config.dataFile),
+  VAULT_PATH: config.vaultPath,
+  OUTPUT_FILE: config.dataFile,
   TAG_PREFIX: 'life/eukaryota/plantae',
   FRONTMATTER_REGEX: /^---\s*\n([\s\S]*?)\n---/,
   TAGS_REGEX: /tags:\s*\n((?:  - .+\n)+)/,
