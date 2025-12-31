@@ -150,13 +150,16 @@ function findMarkdownFiles(dir) {
 
 /**
  * Check if a filename matches the taxonomy level name (normalized comparison)
+ * Handles hybrid notation (× and x) used in botanical nomenclature
  * @param {string} fileName - File name to compare
  * @param {string} taxonomyName - Taxonomy name to compare
  * @returns {boolean} Whether they match
  */
 function fileMatchesTaxonomy(fileName, taxonomyName) {
   const normalizeForComparison = (str) => 
-    str.toLowerCase().replace(/[\s-]/g, '');
+    str.toLowerCase()
+       .replace(/[\s-]/g, '')      // Remove spaces and hyphens
+       .replace(/[×x]/g, '');       // Remove hybrid indicators (× and x)
   return normalizeForComparison(fileName) === normalizeForComparison(taxonomyName);
 }
 
