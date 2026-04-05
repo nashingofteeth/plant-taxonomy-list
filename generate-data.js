@@ -175,56 +175,79 @@ function filterOtherFiles(files, nodeName, childKeys) {
   });
 }
 
+// Build a file attributes object — drops fileName (redundant with node.name),
+// omits aliases when empty to keep the JSON lean
+function fileToAttrs(f) {
+  const attrs = {};
+  if (f.wikipedia) attrs.wikipedia = f.wikipedia;
+  if (f.aliases && f.aliases.length) attrs.aliases = f.aliases;
+  return attrs;
+}
+
+// Convert a file entry to a leaf child node (species without taxonomy sub-levels)
+function fileToLeafNode(f) {
+  return { name: f.fileName, file: fileToAttrs(f) };
+}
+
 // Convert tree to simplified JSON structure
 function treeToJSON(tree, parentFiles = []) {
   const result = [];
   const sortedKeys = Object.keys(tree).sort();
-  
+
   for (const key of sortedKeys) {
     const node = tree[key];
     const childKeys = Object.keys(node.children).sort();
-    
+
     // Find matching file for this node
-    const matchingFile = findMatchingFile(node.files, node.name) || 
-                        findMatchingFile(parentFiles, node.name);
-    
-    // Process children with binomial name matching
-    const children = [];
+    const matchingFile = findMatchingFile(node.files, node.name) ||
+                         findMatchingFile(parentFiles, node.name);
+
+    // Build taxonomy children with binomial name matching
+    const taxonomyChildren = [];
     for (const childKey of childKeys) {
       const childNode = node.children[childKey];
       const allFiles = [...node.files, ...parentFiles];
       const binomialMatch = findBinomialMatch(allFiles, node.name, childKey);
-      
+
       if (binomialMatch) {
-        const otherFiles = childNode.files
+        // Binomial species node: leftover files become its leaf children
+        const leafChildren = childNode.files
           .filter(f => !fileMatchesTaxonomy(f.fileName, childKey))
-          .sort((a, b) => a.fileName.localeCompare(b.fileName));
-        
-        children.push({
+          .sort((a, b) => a.fileName.localeCompare(b.fileName))
+          .map(fileToLeafNode);
+
+        const deepChildren = Object.keys(childNode.children).length > 0
+          ? treeToJSON(childNode.children, childNode.files)
+          : [];
+
+        const allChildren = [...leafChildren, ...deepChildren];
+        const entry = {
           name: binomialMatch.fileName,
-          file: binomialMatch,
-          otherFiles,
-          children: Object.keys(childNode.children).length > 0
-            ? treeToJSON(childNode.children, childNode.files)
-            : []
-        });
+          file: fileToAttrs(binomialMatch),
+        };
+        if (allChildren.length) entry.children = allChildren;
+        taxonomyChildren.push(entry);
       } else {
-        children.push(...treeToJSON({ [childKey]: childNode }, node.files));
+        taxonomyChildren.push(...treeToJSON({ [childKey]: childNode }, node.files));
       }
     }
-    
-    // Filter other files
-    const otherFiles = filterOtherFiles(node.files, node.name, childKeys)
-      .sort((a, b) => a.fileName.localeCompare(b.fileName));
-    
-    result.push({
+
+    // Leaf species listed before taxonomy children
+    const leafChildren = filterOtherFiles(node.files, node.name, childKeys)
+      .sort((a, b) => a.fileName.localeCompare(b.fileName))
+      .map(fileToLeafNode);
+
+    const allChildren = [...leafChildren, ...taxonomyChildren];
+
+    const entry = {
       name: capitalize(node.name),
-      file: matchingFile || null,
-      otherFiles,
-      children
-    });
+      file: matchingFile ? fileToAttrs(matchingFile) : null,
+    };
+    if (allChildren.length) entry.children = allChildren;
+
+    result.push(entry);
   }
-  
+
   return result;
 }
 

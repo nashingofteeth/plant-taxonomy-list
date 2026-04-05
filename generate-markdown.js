@@ -14,26 +14,21 @@ const {
 const INPUT_FILE = config.dataFile;
 const OUTPUT_FILE = config.markdownFile;
 
-// Generate markdown from JSON tree (original implementation)
+// Generate markdown from JSON tree
 function generateMarkdown(taxonomy, level = 0) {
   let markdown = '';
   const indent = '\t'.repeat(level);
 
   for (const node of taxonomy) {
-    // Show the taxonomy level name or file
+    // Nodes with a file get a wikilink; undocumented taxonomy levels are plain text
     if (node.file) {
-      markdown += `${indent}- [[${node.file.fileName}]]\n`;
+      markdown += `${indent}- [[${node.name}]]\n`;
     } else {
       markdown += `${indent}- ${node.name}\n`;
     }
 
-    // Show other files at this level
-    for (const file of node.otherFiles) {
-      markdown += `${indent}\t- [[${file.fileName}]]\n`;
-    }
-
-    // Recursively process children
-    if (node.children.length > 0) {
+    // Children include leaf species and taxonomy sub-nodes
+    if (node.children?.length > 0) {
       markdown += generateMarkdown(node.children, level + 1);
     }
   }
