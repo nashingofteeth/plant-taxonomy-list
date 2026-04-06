@@ -291,7 +291,7 @@ function main() {
     };
     
     // Write to file
-    safeWriteFile(CONFIG.OUTPUT_FILE, JSON.stringify(jsonData, null, 2), 'Plant data JSON');
+    safeWriteFile(CONFIG.OUTPUT_FILE, JSON.stringify(jsonData), 'Plant data JSON');
     Logger.info(`Total plants catalogued: ${plantFiles.length}`);
     
   } catch (error) {
