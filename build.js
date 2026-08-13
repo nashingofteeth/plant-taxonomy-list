@@ -17,8 +17,8 @@ try {
   execSync(`node "${config.markdownScript}"`, { stdio: 'inherit' });
   
   // Copy files to destinations
-  Logger.info('Copying data file to atlas...');
-  execSync(`cp "${config.dataFile}" "${config.atlasDataPath}"`, { stdio: 'inherit' });
+  Logger.info('Copying data file to potato...');
+  execSync(`cp "${config.dataFile}" "${config.potatoDataPath}"`, { stdio: 'inherit' });
   
   Logger.info('Copying markdown file to wiki...');
   execSync(`cp "${config.markdownFile}" "${config.wikiMarkdownPath}"`, { stdio: 'inherit' });
