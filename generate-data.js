@@ -160,6 +160,24 @@ function findBinomialMatch(files, parentName, childName) {
   return files.find(f => fileMatchesTaxonomy(f.fileName, binomialPattern));
 }
 
+// Normalized prefix comparison: does `fileName` name a taxon strictly below the
+// `taxonomyName` (e.g. "Apium graveolens var. dulce" vs "apium graveolens")?
+function fileNameStartsWithTaxonomy(fileName, taxonomyName) {
+  const norm = s => s.toLowerCase().replace(/[\s-]/g, '').replace(/[×x]/g, '');
+  const fn = norm(fileName);
+  const tx = norm(taxonomyName);
+  return fn.startsWith(tx) && fn.length > tx.length;
+}
+
+// Detect a species-epithet child that has no species note but does have taxa
+// below it (varieties/subspecies) — e.g. "graveolens" under "apium" with the
+// note "Apium graveolens var. dulce". Lets the generator render a clean
+// "Apium graveolens" species node instead of a bare "Graveolens" node.
+function isSpeciesEpithet(parentName, childKey, childNode) {
+  const prefix = `${parentName} ${childKey}`;
+  return (childNode.files || []).some(f => fileNameStartsWithTaxonomy(f.fileName, prefix));
+}
+
 function filterOtherFiles(files, nodeName, childKeys) {
   return files.filter(f => {
     if (fileMatchesTaxonomy(f.fileName, nodeName)) return false;
@@ -225,6 +243,21 @@ function treeToJSON(tree, parentFiles = []) {
           name: binomialMatch.fileName,
           file: fileToAttrs(binomialMatch),
         };
+        if (allChildren.length) entry.children = allChildren;
+        taxonomyChildren.push(entry);
+      } else if (isSpeciesEpithet(node.name, childKey, childNode)) {
+        // No species note, but a taxon below the species exists (e.g. a variety
+        // named "Apium graveolens var. dulce"). Render a proper "Apium graveolens"
+        // species node so the variety nests under it.
+        const leafChildren = childNode.files
+          .filter(f => !fileMatchesTaxonomy(f.fileName, childKey))
+          .sort((a, b) => a.fileName.localeCompare(b.fileName))
+          .map(fileToLeafNode);
+        const deepChildren = Object.keys(childNode.children).length > 0
+          ? treeToJSON(childNode.children, childNode.files)
+          : [];
+        const allChildren = [...leafChildren, ...deepChildren];
+        const entry = { name: `${capitalize(node.name)} ${childKey}`, file: null };
         if (allChildren.length) entry.children = allChildren;
         taxonomyChildren.push(entry);
       } else {
